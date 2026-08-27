@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "STD"
+version = "0.0.1"
+authors = [
+  { name="Y.N", email="yn.coder@gmail.com" },
+]
+description = "STC — Standard Template Construct for Space Station"
+readme = "README.md"
+requires-python = ">=3.8"
+
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+
+]
+
+[project.urls]
+"Homepage" = "https://github.com/postpdm/space_station_std"
+"Bug Tracker" = "https://github.com/postpdm/space_station_std/issues"
+
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
