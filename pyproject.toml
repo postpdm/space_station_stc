@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "space-station-std"
+name = "space-station-stc"
 version = "0.0.1"
 authors = [
   { name="Y.N", email="yn.coder@gmail.com" },
@@ -22,8 +22,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/postpdm/space_station_std"
-"Bug Tracker" = "https://github.com/postpdm/space_station_std/issues"
+"Homepage" = "https://github.com/postpdm/space_station_stc"
+"Bug Tracker" = "https://github.com/postpdm/space_station_stc/issues"
 
 [tool.pytest.ini_options]
 minversion = "7.0"
