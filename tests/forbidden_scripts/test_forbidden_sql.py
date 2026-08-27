@@ -48,6 +48,14 @@ def test_drop_database():
     with pytest.raises(SQLValidationError):
         validator.validate( 'drop database' )
 
+def test_forbidden_table():
+    """test query for forbidden table."""
+
+    validator = SQLValidator(config_user_orders)
+
+    with pytest.raises(SQLValidationError):
+        validator.validate( 'select id from admins' )
+
 def test_valid_queries():
     """test valid queries."""
 
