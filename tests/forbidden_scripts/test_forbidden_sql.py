@@ -30,6 +30,23 @@ config_user_orders = SQLValidatorConfig(
     allow_cte=True,
 )
 
+def test_abracadabra():
+    """test corrupted queries."""
+
+    validator = SQLValidator(config_user_orders)
+
+    # should raise SQLValidationError
+    with pytest.raises(SQLValidationError):
+        validator.validate( 'hublyz123vv' )
+
+def test_drop_database():
+    """test drop database queries."""
+
+    validator = SQLValidator(config_user_orders)
+
+    # should raise SQLValidationError
+    with pytest.raises(SQLValidationError):
+        validator.validate( 'drop database' )
 
 def test_valid_queries():
     """test valid queries."""
