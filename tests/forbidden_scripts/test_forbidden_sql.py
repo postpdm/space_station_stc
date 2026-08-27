@@ -20,19 +20,21 @@ invalid_queries = [
     "SELECT id FROM users WHERE id IN (SELECT user_id FROM orders WHERE total > (SELECT MAX(total) FROM orders))",
 ]
 
+config_user_orders = SQLValidatorConfig(
+    allowed_tables={"users", "orders", "public.users"},
+    allowed_fields={"id", "name", "email", "total", "user_id", "cnt"},
+    allow_star=False,
+    allowed_functions={"COUNT", "SUM", "MAX", "MIN"},
+    forbidden_functions={"SLEEP", "BENCHMARK"},
+    max_subquery_depth=1,
+    allow_cte=True,
+)
+
+
 def test_valid_queries():
     """test valid queries."""
 
-    config = SQLValidatorConfig(
-        allowed_tables={"users", "orders", "public.users"},
-        allowed_fields={"id", "name", "email", "total", "user_id", "cnt"},
-        allow_star=False,
-        allowed_functions={"COUNT", "SUM", "MAX", "MIN"},
-        forbidden_functions={"SLEEP", "BENCHMARK"},
-        max_subquery_depth=1,
-        allow_cte=True,
-    )
-    validator = SQLValidator(config)
+    validator = SQLValidator(config_user_orders)
 
     # should not raise nothing
     for q in valid_queries:
@@ -41,16 +43,7 @@ def test_valid_queries():
 def test_invalid_queries():
     """test invalid queries."""
 
-    config = SQLValidatorConfig(
-        allowed_tables={"users", "orders", "public.users"},
-        allowed_fields={"id", "name", "email", "total", "user_id", "cnt"},
-        allow_star=False,
-        allowed_functions={"COUNT", "SUM", "MAX", "MIN"},
-        forbidden_functions={"SLEEP", "BENCHMARK"},
-        max_subquery_depth=1,
-        allow_cte=True,
-    )
-    validator = SQLValidator(config)
+    validator = SQLValidator(config_user_orders)
 
     # should raise SQLValidationError
     for q in invalid_queries:
