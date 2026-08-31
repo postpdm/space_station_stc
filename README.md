@@ -8,3 +8,7 @@ STC — Standard Template Construct for Space Station
 ### Forbidden sql
 
 Check the SQL string for allowed and disallowed operations.
+
+## Orion manuscript
+
+Embedding an interpreter for a lightweight and secure language.
