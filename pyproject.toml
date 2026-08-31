@@ -25,8 +25,5 @@ dependencies = [
 "Homepage" = "https://github.com/postpdm/space_station_stc"
 "Bug Tracker" = "https://github.com/postpdm/space_station_stc/issues"
 
-[tool.pytest.ini_options]
-minversion = "7.0"
-
-pythonpath = ["."]
-testpaths = ["tests"]
+[tool.setuptools.packages.find]
+where = ["src"]
