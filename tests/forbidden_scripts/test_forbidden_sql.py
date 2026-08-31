@@ -1,6 +1,6 @@
 import pytest
 # Import classes from the package
-from forbidden_scripts.forbidden_sql import *
+from space_station_stc.forbidden_scripts.forbidden_sql import *
 
 valid_queries = [
     "SELECT id, name FROM users",
@@ -24,7 +24,7 @@ config_user_orders = SQLValidatorConfig(
     allowed_tables={"users", "orders", "public.users"},
     allowed_fields={"id", "name", "email", "total", "user_id", "cnt"},
     allow_star=False,
-    allowed_functions={"COUNT", "SUM", "MAX", "MIN"},
+    allowed_functions={"DATE","COUNT", "SUM", "MAX", "MIN"},
     forbidden_functions={"SLEEP", "BENCHMARK"},
     max_subquery_depth=1,
     allow_cte=True,
