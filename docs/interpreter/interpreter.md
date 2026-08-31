@@ -98,41 +98,41 @@ World
 
 interpreter.interpret(program, commands)
 
+```
+
 Output:
 
+```
 Hello
 World
 Sum: 30.5
+```
 
 Testing
 
-pytest test_interpreter.py
+    pytest test_interpreter.py
 
 The tests cover:
 
-    Comment stripping
-
-    Empty program and comment-only input
-
-    Single and multiple commands
-
-    Argument collection and preservation of whitespace
-
-    Command name normalization (case, extra spaces)
-
-    Execution with custom handlers
-
-    Unknown command handling
+ - Comment stripping
+ - Empty program and comment-only input
+ - Single and multiple commands
+ - Argument collection and preservation of whitespace
+ - Command name normalization (case, extra spaces)
+ - Execution with custom handlers
+ - Unknown command handling
 
 Extending the Language
 
 To add a new command, simply define a handler function and add it to the command dictionary:
 
+```
 def cmd_shout(args):
     for a in args:
         print(a.upper())
 
 commands["shout"] = cmd_shout
+```
 
 No changes to the interpreter itself are needed.
 
@@ -143,3 +143,7 @@ Design Notes
 - The parser is intentionally simple; it does not support nested blocks or special escape sequences.
 
 - Leading whitespace in arguments is preserved to allow commands that interpret indentation (e.g., code blocks, configuration sections).
+
+
+## Class wrapper
+
