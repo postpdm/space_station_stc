@@ -145,8 +145,6 @@ Design Notes
 - Leading whitespace in arguments is preserved to allow commands that interpret indentation (e.g., code blocks, configuration sections).
 
 
-## Class wrapper
-
 # Abstract Base Class Wrapper for Script Interpreters
 
 ## Overview
@@ -234,5 +232,21 @@ If you prefer to raise a different exception, override the method and raise your
 from abc_stc_script import UnknownCommandError
 ```
 
+## Integration with the Parser
 
+The base class uses the `interpreter.parse_program()` function to break the input into command blocks. You do not need to call the parser directly unless you require advanced customisation.
 
+## Testing Your Interpreter
+
+Subclasses can be easily tested with `pytest`. The repository includes a test file (`test_abc_stc_script.py`) that demonstrates typical tests, including dispatch, normalization, unknown commands, and whitespace preservation.
+
+## Extending
+
+To add a new command, simply add a new method to your subclass following the `cmd_` naming rule. No changes to the base class are required.
+
+## Design Notes
+
+ - The class is abstract (inherits from `abc.ABC`), but it does not enforce abstract methods; any command can be omitted.
+ - Command names are case‑insensitive and extra spaces between words are ignored.
+ - Argument lines are passed as a list of strings, preserving their original leading/trailing whitespace.
+ 
