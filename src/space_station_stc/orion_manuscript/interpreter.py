@@ -1,6 +1,6 @@
 # interpreter.py
 
-def strip_comment(line: str) -> str:
+async def strip_comment(line: str) -> str:
     """Remove comment starting with '#' from the line."""
     idx = line.find('#')
     if idx != -1:
@@ -8,12 +8,12 @@ def strip_comment(line: str) -> str:
     return line
 
 
-def normalize_command_name(raw_name: str) -> str:
+async def normalize_command_name(raw_name: str) -> str:
     """Normalize command name: lowercase and collapse extra whitespace."""
     return " ".join(raw_name.split()).lower()
 
 
-def parse_program(text: str) -> list:
+async def parse_program(text: str) -> list:
     """
     Parse program text into a list of command blocks.
     Each block is a tuple (command_name, list_of_arguments).
@@ -28,7 +28,7 @@ def parse_program(text: str) -> list:
 
     for raw_line in text.splitlines():
         # 1. Remove comment
-        line = strip_comment(raw_line)
+        line = await strip_comment(raw_line)
         # 2. Skip empty lines (no non-whitespace characters)
         if not line.strip():
             continue
@@ -41,7 +41,7 @@ def parse_program(text: str) -> list:
             # Extract command name: everything after ':' until end of line, trimmed
             command_part = line[1:].strip()
             if command_part:               # ignore lines with just ':' (empty command)
-                current_command = normalize_command_name(command_part)
+                current_command = await normalize_command_name(command_part)
                 current_args = []
             else:
                 current_command = None
@@ -57,17 +57,17 @@ def parse_program(text: str) -> list:
     return blocks
 
 
-def run_program(blocks: list, command_dict: dict) -> None:
+async def run_program(blocks: list, command_dict: dict) -> None:
     """Execute commands sequentially, calling handlers from the dictionary."""
     for name, args in blocks:
         handler = command_dict.get(name)
         if handler:
-            handler(args)
+            await handler(args)
         else:
             print(f"Unknown command: {name}")
 
 
-def interpret(text: str, command_dict: dict) -> None:
+async def interpret(text: str, command_dict: dict) -> None:
     """Full interpretation cycle: parsing and execution."""
-    blocks = parse_program(text)
-    run_program(blocks, command_dict)
+    blocks = await parse_program(text)
+    await run_program(blocks, command_dict)
