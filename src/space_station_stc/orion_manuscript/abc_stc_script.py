@@ -40,9 +40,9 @@ class ABC_STC_Script(ABC):
         Args:
             text: The full program text.
         """
-        blocks = interpreter.parse_program(text)
+        blocks = await interpreter.parse_program(text)
         for command_name, args in blocks:
-            method = self._get_command_method(command_name)
+            method = await self._get_command_method(command_name)
             if method is not None:
                 await method(args)
             else:
@@ -58,7 +58,7 @@ class ABC_STC_Script(ABC):
         method_name = "cmd_" + command_name.replace(" ", "_")
         return getattr(self, method_name, None)
 
-    async def unknown_command(self, command_name: str, args: list) -> None:
+    def unknown_command(self, command_name: str, args: list) -> None:
         """
         Called when no handler method is found for a command.
 
