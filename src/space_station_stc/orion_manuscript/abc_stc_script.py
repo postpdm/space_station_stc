@@ -33,7 +33,7 @@ class ABC_STC_Script(ABC):
     This can be changed by overriding `unknown_command`.
     """
 
-    def interpret(self, text: str) -> None:
+    async def interpret(self, text: str) -> None:
         """
         Parse the input text and execute each command block.
 
@@ -44,11 +44,11 @@ class ABC_STC_Script(ABC):
         for command_name, args in blocks:
             method = self._get_command_method(command_name)
             if method is not None:
-                method(args)
+                await method(args)
             else:
                 self.unknown_command(command_name, args)
 
-    def _get_command_method(self, command_name: str):
+    async def _get_command_method(self, command_name: str):
         """
         Return the bound method for the given normalized command name,
         or None if no such method exists.
@@ -58,7 +58,7 @@ class ABC_STC_Script(ABC):
         method_name = "cmd_" + command_name.replace(" ", "_")
         return getattr(self, method_name, None)
 
-    def unknown_command(self, command_name: str, args: list) -> None:
+    async def unknown_command(self, command_name: str, args: list) -> None:
         """
         Called when no handler method is found for a command.
 
