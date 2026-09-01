@@ -30,42 +30,47 @@ config_user_orders = SQLValidatorConfig(
     allow_cte=True,
 )
 
-def test_abracadabra():
+@pytest.mark.asyncio
+async def test_abracadabra():
     """test corrupted queries."""
 
     validator = SQLValidator(config_user_orders)
 
     # should raise SQLValidationError
     with pytest.raises(SQLValidationError):
-        validator.validate( 'hublyz123vv' )
+        await validator.validate( 'hublyz123vv' )
 
-def test_drop_database():
+@pytest.mark.asyncio
+async def test_drop_database():
     """test drop database queries."""
 
     validator = SQLValidator(config_user_orders)
 
     # should raise SQLValidationError
     with pytest.raises(SQLValidationError):
-        validator.validate( 'drop database' )
+        await validator.validate( 'drop database' )
 
-def test_forbidden_table():
+@pytest.mark.asyncio
+async def test_forbidden_table():
     """test query for forbidden table."""
 
     validator = SQLValidator(config_user_orders)
 
     with pytest.raises(SQLValidationError):
-        validator.validate( 'select id from admins' )
+        await validator.validate( 'select id from admins' )
 
-def test_valid_queries():
+@pytest.mark.asyncio
+async def test_valid_queries():
     """test valid queries."""
 
     validator = SQLValidator(config_user_orders)
 
     # should not raise nothing
     for q in valid_queries:
-        validator.validate(q)
+        await validator.validate(q)
 
-def test_invalid_queries():
+@pytest.mark.asyncio
+async def test_invalid_queries():
     """test invalid queries."""
 
     validator = SQLValidator(config_user_orders)
@@ -73,4 +78,4 @@ def test_invalid_queries():
     # should raise SQLValidationError
     for q in invalid_queries:
         with pytest.raises(SQLValidationError):
-            validator.validate(q)
+            await validator.validate(q)

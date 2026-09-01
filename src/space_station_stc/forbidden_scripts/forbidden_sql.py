@@ -54,7 +54,7 @@ class SQLValidator:
     def __init__(self, config: SQLValidatorConfig):
         self.config = config
 
-    def validate(self, sql: str) -> None:
+    async def validate(self, sql: str) -> None:
         """
         Validate the given SQL string.
 
@@ -71,36 +71,36 @@ class SQLValidator:
             raise SQLValidationError("Only SELECT statements are allowed.")
 
         # 2. Forbidden operations
-        self._check_forbidden_operations(expression)
+        await self._check_forbidden_operations(expression)
 
         # 3. CTE handling
-        cte_tables = self._extract_cte_tables(expression)
+        cte_tables = await self._extract_cte_tables(expression)
         if cte_tables and not self.config.allow_cte:
             raise SQLValidationError("CTE (WITH) is forbidden.")
 
         # 4. Tables whitelist
-        tables = self._extract_tables(expression, exclude_cte=cte_tables)
+        tables = await self._extract_tables(expression, exclude_cte=cte_tables)
         for table in tables:
-            if not self._is_table_allowed(table):
+            if not await self._is_table_allowed(table):
                 raise SQLValidationError(f"Table not allowed: {table}")
 
         # 5. Fields whitelist
-        fields = self._extract_fields(expression)
+        fields = await self._extract_fields(expression)
         for field in fields:
             if field not in self.config.allowed_fields:
                 raise SQLValidationError(f"Field not allowed: {field}")
 
         # 6. Star check
-        if not self.config.allow_star and self._contains_star(expression):
+        if not self.config.allow_star and await self._contains_star(expression):
             raise SQLValidationError("SELECT * is not allowed (allow_star=False).")
 
         # 7. Functions check
-        self._check_functions(expression)
+        await self._check_functions(expression)
 
         # 8. Subquery depth
-        self._check_subquery_depth(expression)
+        await self._check_subquery_depth(expression)
 
-    def _check_forbidden_operations(self, expression: exp.Expression) -> None:
+    async def _check_forbidden_operations(self, expression: exp.Expression) -> None:
         """Check for forbidden operations (UNION, DML, DDL, etc.)."""
         # Stable AST node types
         for node in expression.walk():
@@ -134,7 +134,7 @@ class SQLValidator:
             if re.search(pattern, sql_upper):
                 raise SQLValidationError(f"Forbidden operation: {op}")
 
-    def _extract_cte_tables(self, expression: exp.Expression) -> Set[str]:
+    async def _extract_cte_tables(self, expression: exp.Expression) -> Set[str]:
         """Extract CTE names from the AST."""
         cte_names = set()
         for cte in expression.find_all(exp.CTE):
@@ -149,7 +149,7 @@ class SQLValidator:
                 cte_names.add(name)
         return cte_names
 
-    def _extract_tables(self, expression: exp.Expression, exclude_cte: Optional[Set[str]] = None) -> Set[str]:
+    async def _extract_tables(self, expression: exp.Expression, exclude_cte: Optional[Set[str]] = None) -> Set[str]:
         """Extract table names, excluding CTEs."""
         tables = set()
         for table in expression.find_all(exp.Table):
@@ -165,18 +165,18 @@ class SQLValidator:
             tables.add(full_name)
         return tables
 
-    def _extract_fields(self, expression: exp.Expression) -> Set[str]:
+    async def _extract_fields(self, expression: exp.Expression) -> Set[str]:
         """Extract column names (without qualifiers)."""
         fields = set()
         for column in expression.find_all(exp.Column):
             fields.add(column.name)
         return fields
 
-    def _contains_star(self, expression: exp.Expression) -> bool:
+    async def _contains_star(self, expression: exp.Expression) -> bool:
         """Check for any Star node."""
         return any(isinstance(node, exp.Star) for node in expression.walk())
 
-    def _is_table_allowed(self, table: str) -> bool:
+    async def _is_table_allowed(self, table: str) -> bool:
         """Check if table is allowed (full name or just table name)."""
         if table in self.config.allowed_tables:
             return True
@@ -186,7 +186,7 @@ class SQLValidator:
                 return True
         return False
 
-    def _check_functions(self, expression: exp.Expression) -> None:
+    async def _check_functions(self, expression: exp.Expression) -> None:
         """Check function usage."""
         used_functions = set()
         for func in expression.find_all(exp.Func):
@@ -209,7 +209,7 @@ class SQLValidator:
             if not_allowed:
                 raise SQLValidationError(f"Functions not allowed: {', '.join(not_allowed)}")
 
-    def _check_subquery_depth(self, expression: exp.Expression) -> None:
+    async def _check_subquery_depth(self, expression: exp.Expression) -> None:
         """Check nested subquery depth."""
         def max_depth(node: exp.Expression, current_depth: int) -> int:
             if isinstance(node, exp.Select):
