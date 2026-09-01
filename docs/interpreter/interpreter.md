@@ -71,11 +71,11 @@ A command handler is a Python function that accepts one argument: a list of stri
 Example:
 
 ```python
-def cmd_print(args):
+async def cmd_print(args):
     for line in args:
         print(line)
 
-def cmd_compute(args):
+async def cmd_compute(args):
     total = sum(float(a) for a in args)
     print(f"Sum: {total}")
 
@@ -96,7 +96,7 @@ World
 20.5
 """
 
-interpreter.interpret(program, commands)
+await interpreter.interpret(program, commands)
 
 ```
 
@@ -127,7 +127,7 @@ Extending the Language
 To add a new command, simply define a handler function and add it to the command dictionary:
 
 ```
-def cmd_shout(args):
+async def cmd_shout(args):
     for a in args:
         print(a.upper())
 
@@ -177,11 +177,11 @@ Examples:
 
 ```python
 class MyScript(ABC_STC_Script):
-    def cmd_print(self, args):
+    async def cmd_print(self, args):
         for line in args:
             print(line)
 
-    def cmd_compute(self, args):
+    async def cmd_compute(self, args):
         total = sum(float(a) for a in args)
         print(f"Sum: {total}")
 
@@ -191,7 +191,7 @@ class MyScript(ABC_STC_Script):
 
 ```python
 script = MyScript()
-script.interpret("""
+async script.interpret("""
     : print
     Hello, World!
     : compute
@@ -221,6 +221,7 @@ class LenientScript(ABC_STC_Script):
         print(f"Ignoring unknown command: {command_name}")
 ```
 
+   unknown_command is sync!
 
 If you prefer to raise a different exception, override the method and raise your own.
 
