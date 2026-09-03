@@ -3,6 +3,12 @@ STC — Standard Template Construct for Space Station
 
 [![Coverage Status](https://coveralls.io/repos/github/postpdm/space_station_stc/badge.svg?branch=main)](https://coveralls.io/github/postpdm/space_station_stc?branch=main)
 
+## HULL
+
+### Plugin ABC
+
+Basic abstract plugin for Space Station extensions.
+
 ## 	Forbidden scripts
 
 ### Forbidden sql
