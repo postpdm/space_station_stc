@@ -1,5 +1,5 @@
 """Abstract plugin interface for the Space Station application."""
-from abc import ABC
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import ClassVar
 from uuid import UUID
@@ -18,7 +18,12 @@ class BasePlugin(InitPlugin, ABC):
     Abstract plugin.
     The loader skips this class and instantiates only concrete subclasses.
     """
-
+    
+    @abstractmethod
+    def health(self) -> bool :
+        """Subclasses must declare their controllers."""
+        ...
+        
     # Global unique plugin identifier.
     fplugin_id: UUID
     fuser_title: str
