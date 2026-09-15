@@ -67,6 +67,11 @@ class BasePlugin(InitPlugin, ABC):
         return self.fuser_description
 
     @property
+    def sql_connections(self) -> str:
+        """Return declared sql input sources."""
+        return str( self.fsql_connections )
+
+    @property
     def plugin_name(self) -> str:
         """Return class name."""
         return self.__class__.__name__
@@ -101,14 +106,18 @@ class BasePlugin(InitPlugin, ABC):
         """
         deps: dict[str, Provide] = {}
         for name, bundle in self.fsql_provided.items():
-            deps[f"sql_{name}_engine"] = Provide(
-                lambda b=bundle: b.engine, sync_to_thread=False
-            )
-            deps[f"sql_{name}_session"] = Provide(
-                lambda b=bundle: b.sessionmaker, sync_to_thread=False
-            )
-        return deps
+            def make_engine(b: SQLConnectionBundle = bundle) -> AsyncEngine:
+                return b.engine
 
+            def make_session(
+                b: SQLConnectionBundle = bundle,
+            ) -> async_sessionmaker:
+                return b.sessionmaker
+
+            deps[f"sql_{name}_engine"] = Provide(make_engine, sync_to_thread=False)
+            deps[f"sql_{name}_session"] = Provide(make_session, sync_to_thread=False)
+        return deps
+    
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
