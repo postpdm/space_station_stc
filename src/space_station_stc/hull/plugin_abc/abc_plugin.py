@@ -1,33 +1,50 @@
-"""Abstract plugin interface for the Litestar application."""
+"""Abstract plugin interface for the Space Station application."""
 from abc import ABC
+from pathlib import Path
+from typing import ClassVar
 from uuid import UUID
 
-from pathlib import Path
-
-from litestar.plugins import InitPlugin
 from litestar.config.app import AppConfig
+from litestar.di import Provide
+from litestar.plugins import InitPlugin
 from litestar.types import ControllerRouterHandler
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+
+from space_station_stc.hull.plugin_abc.sql_bundle import SQLConnectionBundle
+
 
 class BasePlugin(InitPlugin, ABC):
     """
     Abstract plugin.
-    The loader is expected to skip this class itself and instantiate only its concrete subclasses.
+    The loader skips this class and instantiates only concrete subclasses.
     """
 
-    fplugin_id : UUID # global unique plugin ID
-    fuser_title : str
-    fuser_description : str
+    # Global unique plugin identifier.
+    fplugin_id: UUID
+    fuser_title: str
+    fuser_description: str
 
-    """
-    A plugin can fix a list of required static files. Static requirements can be shipped with the source code or collected after the plugin installation.
-    Static files can be very large or may be unavailable for automatic download and installation due to security or other reasons
-    fstatic_req contain a list of related paths of required static files.
-    """
-    fstatic_dir = Path() # path
-    fstatic_req = []
+    # A plugin may require a set of static files shipped with the source
+    # code or downloaded after installation.
+    # fstatic_req holds relative paths of required static files.
+    fstatic_dir: ClassVar[Path] = Path()
+    fstatic_req: ClassVar[list[str]] = []
 
-    # installation error log for system administrative
-    f_init_error_log : str
+    # Installation error log for system administrators.
+    f_init_error_log: str
+
+    # --- SQLAlchemy connection requirements ---
+    # Logical names of SQL connections managed by the core,
+    # e.g. ["report_database", "audit_db"].
+    fsql_connections: ClassVar[list[str]] = []
+
+    # Filled by the loader before on_app_init is called:
+    # {logical_name: SQLConnectionBundle}.
+    fsql_provided: dict[str, SQLConnectionBundle] = {}
+
+    # ------------------------------------------------------------------
+    # Basic properties
+    # ------------------------------------------------------------------
 
     @property
     def ID(self) -> UUID:
@@ -58,30 +75,78 @@ class BasePlugin(InitPlugin, ABC):
     def controllers(self) -> list[ControllerRouterHandler]:
         """
         List of controllers.
-        Redefine it in ancestor.
+        Redefine it in subclasses.
         """
         return []
 
+    # ------------------------------------------------------------------
+    # Convenience helpers for accessing provided SQL connections
+    # ------------------------------------------------------------------
+
+    def sql_engine(self, name: str) -> AsyncEngine:
+        """Return the AsyncEngine registered under the given logical name."""
+        return self.fsql_provided[name].engine
+
+    def sql_sessionmaker(self, name: str) -> async_sessionmaker:
+        """Return the async_sessionmaker registered under the logical name."""
+        return self.fsql_provided[name].sessionmaker
+
+    def sql_dependencies(self) -> dict[str, Provide]:
+        """
+        Build Litestar DI providers for the plugin's own controllers.
+
+        Keys:
+            sql_<name>_engine  -> AsyncEngine
+            sql_<name>_session -> async_sessionmaker
+        """
+        deps: dict[str, Provide] = {}
+        for name, bundle in self.fsql_provided.items():
+            deps[f"sql_{name}_engine"] = Provide(
+                lambda b=bundle: b.engine, sync_to_thread=False
+            )
+            deps[f"sql_{name}_session"] = Provide(
+                lambda b=bundle: b.sessionmaker, sync_to_thread=False
+            )
+        return deps
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         """
-        Base logic for controller's registration.
-        You can redefine it in ancestors with super()).
+        Base logic for controller registration.
+        Subclasses may override it and call super().
         """
         self.f_init_error_log = ""
 
+        # Verify that the core provided every requested SQL connection.
+        missing = [n for n in self.fsql_connections if n not in self.fsql_provided]
+        if missing:
+            self.f_init_error_log += (
+                f'Missing SQL connections: {", ".join(missing)}! '
+            )
+
+        # Register controllers declared by the plugin.
         if self.controllers:
             app_config.route_handlers.extend(self.controllers)
 
-        # check for static        
+        # Check required static files.
         if self.fstatic_req:
             for sf in self.fstatic_req:
-                if not Path( self.fstatic_dir / sf ).is_file():
-                    self.f_init_error_log = self.f_init_error_log + f'Required static file "{sf}" is not found!'
+                if not (self.fstatic_dir / sf).is_file():
+                    self.f_init_error_log += (
+                        f'Required static file "{sf}" is not found! '
+                    )
 
         if self.f_init_error_log:
-            print(f"🔌 Plugin [{self.plugin_name}] ([{self.fplugin_id}]) is plug with errors {self.f_init_error_log}.")
+            print(
+                f"🔌 Plugin [{self.plugin_name}] ({self.fplugin_id}) "
+                f"plugged with errors: {self.f_init_error_log}"
+            )
         else:
-            print(f"🔌 Plugin [{self.plugin_name}] ([{self.fplugin_id}]) is plug successfully.")
+            print(
+                f"🔌 Plugin [{self.plugin_name}] ({self.fplugin_id}) "
+                f"plugged successfully."
+            )
         return app_config
-
-#
