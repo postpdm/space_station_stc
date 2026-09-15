@@ -1,3 +1,4 @@
+"""Abstract plugin interface for the Litestar application."""
 from abc import ABC
 from uuid import UUID
 
@@ -10,7 +11,7 @@ from litestar.types import ControllerRouterHandler
 class BasePlugin(InitPlugin, ABC):
     """
     Abstract plugin.
-    Loader should skip it.
+    The loader is expected to skip this class itself and instantiate only its concrete subclasses.
     """
 
     fplugin_id : UUID # global unique plugin ID
