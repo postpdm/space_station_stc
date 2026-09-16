@@ -103,24 +103,31 @@ class BasePlugin(InitPlugin, ABC):
 
     def sql_dependencies(self) -> dict[str, Provide]:
         """
-        Build Litestar DI providers for the plugin's own controllers.
+        Build lazy Litestar DI providers from `fsql_connections`.
 
-        Keys:
-            sql_<name>_engine  -> AsyncEngine
-            sql_<name>_session -> async_sessionmaker
+        Providers are name-based: they do not read `fsql_provided` until
+        first invocation. That allows the registry to be populated later,
+        in Litestar on_startup, after reading the primary database.
         """
+        plugin = self
         deps: dict[str, Provide] = {}
-        for name, bundle in self.fsql_provided.items():
-            def make_engine(b: SQLConnectionBundle = bundle) -> AsyncEngine:
-                return b.engine
+
+        for name in self.fsql_connections:
+            def make_engine(
+                resource_name: str = name,
+                p: "BasePlugin" = plugin,
+            ) -> AsyncEngine:
+                return p.fsql_provided[resource_name].engine
 
             def make_session(
-                b: SQLConnectionBundle = bundle,
+                resource_name: str = name,
+                p: "BasePlugin" = plugin,
             ) -> async_sessionmaker:
-                return b.sessionmaker
+                return p.fsql_provided[resource_name].sessionmaker
 
             deps[f"sql_{name}_engine"] = Provide(make_engine, sync_to_thread=False)
             deps[f"sql_{name}_session"] = Provide(make_session, sync_to_thread=False)
+
         return deps
     
     # ------------------------------------------------------------------
@@ -128,24 +135,15 @@ class BasePlugin(InitPlugin, ABC):
     # ------------------------------------------------------------------
 
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
-        """
-        Base logic for controller registration.
-        Subclasses may override it and call super().
-        """
         self.f_init_error_log = ""
 
-        # Verify that the core provided every requested SQL connection.
-        missing = [n for n in self.fsql_connections if n not in self.fsql_provided]
-        if missing:
-            self.f_init_error_log += (
-                f'Missing SQL connections: {", ".join(missing)}! '
-            )
+        # NOTE: SQL availability is validated later, in on_startup,
+        # because the registry is populated from the primary DB
+        # asynchronously, after controllers are registered.
 
-        # Register controllers declared by the plugin.
         if self.controllers:
             app_config.route_handlers.extend(self.controllers)
 
-        # Check required static files.
         if self.fstatic_req:
             for sf in self.fstatic_req:
                 if not (self.fstatic_dir / sf).is_file():
