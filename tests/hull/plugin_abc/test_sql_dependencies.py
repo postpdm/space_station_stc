@@ -24,13 +24,20 @@ def test_sql_engine_unknown_name_raises(dummy_plugin) -> None:
         dummy_plugin.sql_engine("nope")
 
 
-def test_sql_dependencies_empty_when_nothing_provided(dummy_plugin) -> None:
+def test_sql_dependencies_empty_when_nothing_declared(dummy_plugin) -> None:
+    dummy_plugin.fsql_connections = []
     dummy_plugin.fsql_provided = {}
     assert dummy_plugin.sql_dependencies() == {}
 
 
-def test_sql_dependencies_keys_and_types(dummy_plugin, fake_bundle) -> None:
-    dummy_plugin.fsql_provided = {"report_database": fake_bundle}
+def test_sql_dependencies_keys_and_types(dummy_plugin) -> None:
+    """
+    Providers are built from fsql_connections (names), independent of
+    whether fsql_provided is populated yet.
+    """
+    dummy_plugin.fsql_connections = ["report_database"]
+    dummy_plugin.fsql_provided = {}   # not yet populated
+
     deps = dummy_plugin.sql_dependencies()
 
     assert set(deps.keys()) == {
@@ -40,34 +47,34 @@ def test_sql_dependencies_keys_and_types(dummy_plugin, fake_bundle) -> None:
     for provider in deps.values():
         assert isinstance(provider, Provide)
 
+
 @pytest.mark.asyncio
 async def test_sql_dependencies_providers_return_same_objects(
     dummy_plugin, fake_bundle
 ) -> None:
     """
-    Even though the provider is a callable, it must return the same
-    engine/sessionmaker captured from the bundle.
+    Providers read fsql_provided lazily, so they can be built before
+    the registry is populated (e.g. before on_startup).
     """
+    dummy_plugin.fsql_connections = ["report_database"]
     dummy_plugin.fsql_provided = {"report_database": fake_bundle}
+
     deps = dummy_plugin.sql_dependencies()
 
-    engine_provider = deps["sql_report_database_engine"]
-    session_provider = deps["sql_report_database_session"]
-
-    # Provide.__call__ is the public way to execute a provider.
-    assert await engine_provider() is fake_bundle.engine
-    assert await session_provider() is fake_bundle.sessionmaker
+    assert await deps["sql_report_database_engine"]() is fake_bundle.engine
+    assert await deps["sql_report_database_session"]() is fake_bundle.sessionmaker
 
 
 @pytest.mark.asyncio
 async def test_sql_dependencies_multiple_connections(
     dummy_plugin, fake_engine, fake_sessionmaker
 ) -> None:
-    from unittest.mock import MagicMock
     from space_station_stc.hull.plugin_abc.sql_bundle import SQLConnectionBundle
 
     bundle_a = SQLConnectionBundle(fake_engine, fake_sessionmaker)
     bundle_b = SQLConnectionBundle(MagicMock(), MagicMock())
+
+    dummy_plugin.fsql_connections = ["a", "b"]
     dummy_plugin.fsql_provided = {"a": bundle_a, "b": bundle_b}
 
     deps = dummy_plugin.sql_dependencies()
@@ -78,11 +85,11 @@ async def test_sql_dependencies_multiple_connections(
         "sql_b_engine",
         "sql_b_session",
     }
-    # Closure captures the correct bundle per name.
     assert await deps["sql_a_engine"]() is bundle_a.engine
     assert await deps["sql_b_engine"]() is bundle_b.engine
     assert await deps["sql_a_session"]() is bundle_a.sessionmaker
     assert await deps["sql_b_session"]() is bundle_b.sessionmaker
+
 
 @pytest.mark.asyncio
 async def test_sql_dependencies_does_not_leak_last_bundle(
@@ -90,15 +97,15 @@ async def test_sql_dependencies_does_not_leak_last_bundle(
 ) -> None:
     """
     Regression test: naive closures in loops capture the last bundle.
-    Our use of default args must avoid that trap.
+    Default-argument capture must avoid that trap.
     """
-    from unittest.mock import MagicMock
-    from space_station_stc.hull.plugin_abc.sql_bundle import SQLConnectionBundle
+    from space_station_stc.hull.plugin_abc.sql_registry import SQLConnectionBundle
 
     bundles = {
         "first": SQLConnectionBundle(fake_engine, fake_sessionmaker),
         "second": SQLConnectionBundle(MagicMock(), MagicMock()),
     }
+    dummy_plugin.fsql_connections = ["first", "second"]
     dummy_plugin.fsql_provided = bundles
 
     deps = dummy_plugin.sql_dependencies()
@@ -107,3 +114,22 @@ async def test_sql_dependencies_does_not_leak_last_bundle(
     assert await deps["sql_second_engine"]() is bundles["second"].engine
     assert await deps["sql_first_engine"]() is not bundles["second"].engine
     assert await deps["sql_second_engine"]() is not bundles["first"].engine
+
+
+@pytest.mark.asyncio
+async def test_sql_dependencies_raises_key_error_if_bundle_missing(
+    dummy_plugin
+) -> None:
+    """
+    If a plugin declared a connection but the registry never provided it,
+    the lazy provider raises KeyError only at call time, not at build time.
+    """
+    dummy_plugin.fsql_connections = ["ghost_db"]
+    dummy_plugin.fsql_provided = {}
+
+    deps = dummy_plugin.sql_dependencies()
+    # Building the providers does not raise.
+    assert "sql_ghost_db_engine" in deps
+
+    with pytest.raises(KeyError, match="ghost_db"):
+        await deps["sql_ghost_db_engine"]()

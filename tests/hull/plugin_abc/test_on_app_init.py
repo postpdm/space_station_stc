@@ -7,6 +7,7 @@ from litestar.config.app import AppConfig
 
 from space_station_stc.hull.plugin_abc.abc_plugin import BasePlugin
 
+
 def _make_app_config() -> AppConfig:
     """Build a minimal AppConfig with empty route_handlers."""
     return AppConfig(route_handlers=[])
@@ -28,47 +29,53 @@ def test_on_app_init_clean(dummy_plugin, capsys) -> None:
 # Controllers registration
 # ----------------------------------------------------------------------
 def test_on_app_init_registers_controllers(dummy_plugin) -> None:
-    sentinel = object()
+    from space_station_stc.hull.plugin_abc.abc_plugin import BasePlugin
 
-    # Patch the `controllers` property on the instance.
+    sentinel = object()
     type(dummy_plugin).controllers = property(lambda self: [sentinel])  # type: ignore[assignment]
     try:
         cfg = _make_app_config()
         dummy_plugin.on_app_init(cfg)
         assert sentinel in cfg.route_handlers
     finally:
-        # Restore the original property so other tests are not affected.
         type(dummy_plugin).controllers = BasePlugin.controllers  # type: ignore[assignment]
 
 
 # ----------------------------------------------------------------------
-# Missing SQL connection
+# Missing SQL connection -> now reported by check_sql_connections,
+# not by on_app_init.
 # ----------------------------------------------------------------------
-def test_on_app_init_reports_missing_sql(dummy_plugin, capsys) -> None:
+def test_check_sql_connections_reports_missing(dummy_plugin, capsys) -> None:
+    dummy_plugin.f_init_error_log = ""
     dummy_plugin.fsql_connections = ["report_database", "audit_db"]
-    # Provide only one of the two.
     dummy_plugin.fsql_provided = {"report_database": MagicMock()}
 
-    cfg = _make_app_config()
-    dummy_plugin.on_app_init(cfg)
+    dummy_plugin.check_sql_connections()
 
     assert "Missing SQL connections" in dummy_plugin.f_init_error_log
     assert "audit_db" in dummy_plugin.f_init_error_log
-    assert "report_database" not in dummy_plugin.f_init_error_log.split(":")[1]
+    # Provided connection must not be reported as missing.
+    assert "report_database" not in dummy_plugin.f_init_error_log.split(":", 1)[-1]
+    # Console output mirrors the plugin log.
+    assert "audit_db" in capsys.readouterr().out
 
 
-def test_on_app_init_no_error_when_all_sql_present(dummy_plugin) -> None:
+def test_check_sql_connections_no_error_when_all_present(
+    dummy_plugin, capsys
+) -> None:
+    dummy_plugin.f_init_error_log = ""
     dummy_plugin.fsql_connections = ["report_database"]
     dummy_plugin.fsql_provided = {"report_database": MagicMock()}
 
-    cfg = _make_app_config()
-    dummy_plugin.on_app_init(cfg)
+    dummy_plugin.check_sql_connections()
 
     assert dummy_plugin.f_init_error_log == ""
+    # No "SQL problem" line on success.
+    assert "SQL problem" not in capsys.readouterr().out
 
 
 # ----------------------------------------------------------------------
-# Static files
+# Static files (on_app_init)
 # ----------------------------------------------------------------------
 def test_on_app_init_static_file_present(dummy_plugin, static_dir: Path) -> None:
     dummy_plugin.fstatic_dir = static_dir
@@ -90,6 +97,10 @@ def test_on_app_init_static_file_missing(dummy_plugin, static_dir: Path) -> None
     assert 'Required static file "missing.css"' in dummy_plugin.f_init_error_log
 
 
+# ----------------------------------------------------------------------
+# Combined: static errors from on_app_init + SQL errors from
+# check_sql_connections end up in the same f_init_error_log.
+# ----------------------------------------------------------------------
 def test_on_app_init_static_and_sql_errors_are_combined(
     dummy_plugin, static_dir: Path
 ) -> None:
@@ -99,15 +110,16 @@ def test_on_app_init_static_and_sql_errors_are_combined(
     dummy_plugin.fsql_provided = {}
 
     cfg = _make_app_config()
-    dummy_plugin.on_app_init(cfg)
+    dummy_plugin.on_app_init(cfg)          # writes static error
+    dummy_plugin.check_sql_connections()   # writes SQL error
 
     log = dummy_plugin.f_init_error_log
-    assert "audit_db" in log
     assert "missing.css" in log
+    assert "audit_db" in log
 
 
 # ----------------------------------------------------------------------
-# Error log is reset on each call
+# Error log is reset on each on_app_init call
 # ----------------------------------------------------------------------
 def test_on_app_init_resets_error_log(dummy_plugin, static_dir: Path) -> None:
     dummy_plugin.fstatic_dir = static_dir
@@ -117,7 +129,6 @@ def test_on_app_init_resets_error_log(dummy_plugin, static_dir: Path) -> None:
     dummy_plugin.on_app_init(cfg)
     assert dummy_plugin.f_init_error_log != ""
 
-    # Second call with a valid static file must clear the previous error.
     dummy_plugin.fstatic_req = ["index.html"]
     dummy_plugin.on_app_init(cfg)
     assert dummy_plugin.f_init_error_log == ""
