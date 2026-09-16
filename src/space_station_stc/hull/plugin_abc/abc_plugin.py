@@ -21,7 +21,7 @@ class BasePlugin(InitPlugin, ABC):
     
     @abstractmethod
     def health(self) -> bool :
-        """Subclasses must declare their controllers."""
+        """Subclasses must declare their controllers. This tiny methods it's only need to make the BasePlugin abstract (PEP 3119 – Introducing Abstract Base Classes)."""
         ...
         
     # Global unique plugin identifier.
@@ -74,7 +74,7 @@ class BasePlugin(InitPlugin, ABC):
     @property
     def sql_connections(self) -> str:
         """Return declared sql input sources."""
-        return str( self.fsql_connections )
+        return self.fsql_connections
 
     @property
     def plugin_name(self) -> str:
