@@ -18,12 +18,12 @@ class BasePlugin(InitPlugin, ABC):
     Abstract plugin.
     The loader skips this class and instantiates only concrete subclasses.
     """
-    
+
     @abstractmethod
     def health(self) -> bool :
         """Subclasses must declare their controllers. This tiny methods it's only need to make the BasePlugin abstract (PEP 3119 – Introducing Abstract Base Classes)."""
         ...
-        
+
     # Global unique plugin identifier.
     fplugin_id: UUID
     fuser_title: str
@@ -129,7 +129,7 @@ class BasePlugin(InitPlugin, ABC):
             deps[f"sql_{name}_session"] = Provide(make_session, sync_to_thread=False)
 
         return deps
-    
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -137,19 +137,13 @@ class BasePlugin(InitPlugin, ABC):
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         self.f_init_error_log = ""
 
-        # NOTE: SQL availability is validated later, in on_startup,
-        # because the registry is populated from the primary DB
-        # asynchronously, after controllers are registered.
-
         if self.controllers:
             app_config.route_handlers.extend(self.controllers)
 
         if self.fstatic_req:
             for sf in self.fstatic_req:
                 if not (self.fstatic_dir / sf).is_file():
-                    self.f_init_error_log += (
-                        f'Required static file "{sf}" is not found! '
-                    )
+                    self.f_init_error_log += f'Required static file "{sf}" is not found! '
 
         if self.f_init_error_log:
             print(
@@ -162,3 +156,20 @@ class BasePlugin(InitPlugin, ABC):
                 f"plugged successfully."
             )
         return app_config
+        
+    def check_sql_connections(self) -> None:
+        """
+        Append a message to f_init_error_log for every requested SQL
+        connection that was not provided by the core.
+        Call this after the registry has been populated.
+        """
+        missing = [n for n in self.fsql_connections if n not in self.fsql_provided]
+        if missing:
+            msg = f'Missing SQL connections: {", ".join(missing)}! '
+            self.f_init_error_log += msg
+            print(
+                f"🔌 Plugin [{self.plugin_name}] ({self.fplugin_id}) "
+                f"SQL problem: {msg.strip()}"
+            )
+
+#
