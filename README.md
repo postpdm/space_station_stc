@@ -18,3 +18,7 @@ Check the SQL string for allowed and disallowed operations.
 ## Orion manuscript
 
 Embedding an interpreter for a lightweight and secure language.
+
+## Relic transmission
+
+Validation rules for data from unknown sources.
