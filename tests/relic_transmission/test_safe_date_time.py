@@ -2,7 +2,6 @@ import datetime
 from unittest.mock import Mock
 import pytest
 
-# Assuming your class is in converters.py:
 from space_station_stc.relic_transmission.validate_dt import SafeDateTime
 
 @pytest.fixture
