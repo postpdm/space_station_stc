@@ -1,7 +1,7 @@
 """Abstract plugin interface for the Space Station application."""
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, get_type_hints, get_origin, get_args, Annotated
 from uuid import UUID
 
 from litestar.config.app import AppConfig
@@ -12,6 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from space_station_stc.hull.plugin_abc.sql_bundle import SQLConnectionBundle
 
+import inspect
+
+from litestar.di import NamedDependency
 
 class BasePlugin(InitPlugin, ABC):
     """
@@ -134,29 +137,105 @@ class BasePlugin(InitPlugin, ABC):
     # Lifecycle
     # ------------------------------------------------------------------
 
+    # Set of valid DI key names this plugin exposes to Litestar.
+    def _expected_di_names(self) -> set[str]:
+        """Names produced by sql_dependencies(): sql_<name>_engine/_session."""
+        names: set[str] = set()
+        for name in self.fsql_connections:
+            names.add(f"sql_{name}_engine")
+            names.add(f"sql_{name}_session")
+        return names
+
+
+    def _collect_dependency_params(self, handler) -> set[str]:
+        """
+        Return names of handler parameters annotated with NamedDependency
+        (or any Annotated[...] carrying a Dependency marker).
+        """
+        found: set[str] = set()
+        fn = getattr(handler, "fn", handler)   # litestar handlers wrap the fn
+        try:
+            hints = get_type_hints(fn, include_extras=True)
+        except Exception:
+            # If hints cannot be resolved, skip - do not block the plugin.
+            return found
+
+        sig = inspect.signature(fn)
+        for pname in sig.parameters:
+            if pname in ("self", "cls"):
+                continue
+            hint = hints.get(pname)
+            if hint is None:
+                continue
+            # Annotated[T, NamedDependency[...]] or Annotated[T, Dependency(...)]
+            if get_origin(hint) is Annotated:
+                for meta in get_args(hint)[1:]:
+                    # NamedDependency is a class alias; isinstance works on
+                    # instances of Dependency, but for NamedDependency it's a
+                    # typing alias - detect by __class_getitem__ / name.
+                    if meta is NamedDependency or meta.__class__.__name__ == "Dependency":
+                        found.add(pname)
+                        break
+        return found
+
+
+    def _validate_controller_dependencies(self, controllers) -> list[str]:
+        """
+        Return a list of human-readable problems: handler parameters that
+        look like SQL dependencies but are not among the names this plugin
+        actually declares in fsql_connections.
+        """
+        expected = self._expected_di_names()
+        problems: list[str] = []
+
+        for controller in controllers:
+            handlers = getattr(controller, "__dict__", {})
+            # Iterate only HTTP route handlers registered on the controller.
+            for attr_name, attr in handlers.items():
+                fn = getattr(attr, "fn", None)
+                if fn is None:
+                    continue
+                for pname in self._collect_dependency_params(attr):
+                    # Only check parameters that look like SQL deps.
+                    if pname.startswith("sql_") and pname not in expected:
+                        problems.append(
+                            f"{controller.__name__}.{attr_name}: "
+                            f"parameter '{pname}' is not declared in "
+                            f"fsql_connections (available: {sorted(expected)})"
+                        )
+        return problems
+
+
     def on_app_init(self, app_config: AppConfig) -> AppConfig:
         self.f_init_error_log = ""
 
         if self.controllers:
-            app_config.route_handlers.extend(self.controllers)
+            problems = self._validate_controller_dependencies(self.controllers)
+            if problems:
+                msg = "SQL dependency mismatch: " + "; ".join(problems)
+                self.f_init_error_log += msg + " "
+                print(f"🔌 Plugin [{self.plugin_name}] ❌ ({self.fplugin_id}) skipped: {msg}")
+                # Do NOT register the controllers -> Litestar never sees them.
+            else:
+                app_config.route_handlers.extend(self.controllers)
 
         if self.fstatic_req:
             for sf in self.fstatic_req:
                 if not (self.fstatic_dir / sf).is_file():
                     self.f_init_error_log += f'Required static file "{sf}" is not found! '
 
-        if self.f_init_error_log:
+        if self.f_init_error_log and "skipped" not in self.f_init_error_log:
             print(
-                f"🔌 Plugin [{self.plugin_name}] ({self.fplugin_id}) "
+                f"🔌 Plugin [{self.plugin_name}] ❌ ({self.fplugin_id}) "
                 f"plugged with errors: {self.f_init_error_log}"
             )
-        else:
+        elif not self.f_init_error_log:
             print(
                 f"🔌 Plugin [{self.plugin_name}] ({self.fplugin_id}) "
                 f"plugged successfully."
             )
         return app_config
-        
+    
     def check_sql_connections(self) -> None:
         """
         Append a message to f_init_error_log for every requested SQL

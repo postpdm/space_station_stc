@@ -132,3 +132,64 @@ def test_on_app_init_resets_error_log(dummy_plugin, static_dir: Path) -> None:
     dummy_plugin.fstatic_req = ["index.html"]
     dummy_plugin.on_app_init(cfg)
     assert dummy_plugin.f_init_error_log == ""
+
+
+def test_on_app_init_skips_controller_with_typo_in_di_name(
+    dummy_plugin, capsys
+) -> None:
+    from litestar import Controller, get
+    from litestar.di import NamedDependency
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    dummy_plugin.fsql_connections = ["report_database"]
+
+    class Bad(Controller):
+        path = "/bad"
+
+        @get("/")
+        async def home(
+            self,
+            sql_rMeport_database_session: NamedDependency[async_sessionmaker],
+        ) -> dict:
+            return {}
+
+    type(dummy_plugin).controllers = property(lambda self: [Bad])
+    try:
+        cfg = AppConfig(route_handlers=[])
+        dummy_plugin.on_app_init(cfg)
+
+        assert Bad not in cfg.route_handlers
+        assert "sql_rMeport_database_session" in dummy_plugin.f_init_error_log
+        assert "skipped" in capsys.readouterr().out
+    finally:
+        from space_station_stc.hull.plugin_abc.abc_plugin import BasePlugin
+        type(dummy_plugin).controllers = BasePlugin.controllers
+
+def test_on_app_init_registers_controller_with_correct_di_name(dummy_plugin) -> None:
+    from litestar import Controller, get
+    from litestar.di import NamedDependency
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+
+    dummy_plugin.fsql_connections = ["report_database"]
+
+    class Good(Controller):
+        path = "/good"
+
+        @get("/")
+        async def home(
+            self,
+            sql_report_database_session: NamedDependency[async_sessionmaker],
+        ) -> dict:
+            return {}
+
+    type(dummy_plugin).controllers = property(lambda self: [Good])
+    try:
+        cfg = AppConfig(route_handlers=[])
+        dummy_plugin.on_app_init(cfg)
+        assert Good in cfg.route_handlers
+        assert dummy_plugin.f_init_error_log == ""
+    finally:
+        from space_station_stc.hull.plugin_abc.abc_plugin import BasePlugin
+        type(dummy_plugin).controllers = BasePlugin.controllers
+
+##
